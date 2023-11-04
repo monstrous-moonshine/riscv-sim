@@ -203,10 +203,11 @@ void simulator::run_I_alu(const instr_t ir) {
     case 3: IOP(<);
     case 4: IOP(^);
     case 5:
-        reg[rd] = imm & 0x400 ? static_cast<int32_t>(reg[rs1]) >> (imm & ONES(5)) : reg[rs1] >> imm;
+        reg[rd] = imm & 0x400 ? static_cast<int32_t>(reg[rs1]) >> (imm & ~0x400) : reg[rs1] >> imm;
         break;
     case 6: IOP(|);
     case 7: IOP(&);
+#undef IOP
     default:
         assert(0);
         break;

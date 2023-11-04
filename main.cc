@@ -46,13 +46,16 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "%s: error reading file '%s'\n", prog_name, argv[1]);
         exit(1);
     }
+    // This is the memory given to the target program
     uint8_t *_mem = (uint8_t *)mmap(NULL, MEM_SIZE, PROT_READ | PROT_WRITE,
                                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (_mem == MAP_FAILED) {
         perror("mmap");
         exit(1);
     }
+    // Wrap it in a smart pointer so that it's freed at exit
     std::unique_ptr<uint8_t, fn_munmap> mem(_mem);
+    // Copy loadable segments into memory
     Elf32_Ehdr *ehdr = (Elf32_Ehdr *)elf.get();
     Elf32_Phdr *phdr = (Elf32_Phdr *)(elf.get() + ehdr->e_phoff);
     for (int i = 0; i < ehdr->e_phnum; i++) {

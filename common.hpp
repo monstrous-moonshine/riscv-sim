@@ -6,9 +6,7 @@
 #define ONES(n) ((1 << (n)) - 1)
 
 #ifndef __ASSEMBLER__
-
 static const char prog_name[] = "riscv_sim";
-
 #endif
 
 #endif

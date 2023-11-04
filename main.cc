@@ -11,28 +11,30 @@
 #include <sys/mman.h>
 #include <utility>
 
-struct fn_munmap {
-    void operator()(uint8_t *p) { munmap(p, MEM_SIZE); }
-};
+namespace {
+    struct fn_munmap {
+        void operator()(uint8_t *p) { munmap(p, MEM_SIZE); }
+    };
 
-std::pair<size_t, std::unique_ptr<uint8_t[]>> read_file(const char *name) {
-    std::ifstream fin(name, std::ios::binary);
-    if (!fin.is_open()) {
-        return std::make_pair(0, nullptr);
+    std::pair<size_t, std::unique_ptr<uint8_t[]>> read_file(const char *name) {
+        std::ifstream fin(name, std::ios::binary);
+        if (!fin.is_open()) {
+            return std::make_pair(0, nullptr);
+        }
+        fin.seekg(0, std::ios_base::end);
+        size_t size = fin.tellg();
+        fin.seekg(0, std::ios_base::beg);
+        uint8_t *buf = new (std::nothrow) uint8_t[size];
+        if (!buf) {
+            return std::make_pair(0, nullptr);
+        }
+        fin.read(reinterpret_cast<char *>(buf), size);
+        if ((size_t)fin.gcount() != size) {
+            // something went wrong?
+        }
+        return std::make_pair(size, std::unique_ptr<uint8_t[]>(buf));
     }
-    fin.seekg(0, std::ios_base::end);
-    size_t size = fin.tellg();
-    fin.seekg(0, std::ios_base::beg);
-    uint8_t *buf = new (std::nothrow) uint8_t[size];
-    if (!buf) {
-        return std::make_pair(0, nullptr);
-    }
-    fin.read(reinterpret_cast<char *>(buf), size);
-    if ((size_t)fin.gcount() != size) {
-        // something went wrong?
-    }
-    return std::make_pair(size, std::unique_ptr<uint8_t[]>(buf));
-}
+} // namespace
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {

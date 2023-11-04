@@ -1,1 +1,5 @@
 /riscv_sim
+dump.s
+/test/gcd/gcd
+/test/sieve/sieve
+/test/sqrt/sqrt

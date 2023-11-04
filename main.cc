@@ -65,6 +65,7 @@ int main(int argc, char *argv[]) {
                    phdr[i].p_filesz);
         }
     }
+    // release memory for elf file as it's no longer needed
     elf.reset();
     simulator sim(mem.get());
     sim.run();

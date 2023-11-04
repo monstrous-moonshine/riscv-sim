@@ -223,11 +223,6 @@ void simulator::run_I_jmp(const instr_t ir) {
     pc = reg[rs1] + imm;
 }
 
-void simulator::run_I_err(const instr_t ir) {
-    errmsg_illegal();
-    exit(1);
-}
-
 void simulator::run_S(instr_t ir) {
     const uint32_t f3 = ir.as.stype.f3;
     const uint32_t rs1 = ir.as.stype.rs1;

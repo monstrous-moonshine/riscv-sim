@@ -48,7 +48,6 @@ class simulator {
     void run_I_ld(instr_t instr);
     void run_I_alu(instr_t instr);
     void run_I_jmp(instr_t instr);
-    void run_I_err(instr_t instr);
     void run_S(instr_t instr);
     void run_B(instr_t instr);
     void run_U(instr_t instr);
@@ -56,11 +55,10 @@ class simulator {
     void errmsg_illegal();
 
     typedef void (simulator::*handler_fn)(const instr_t);
-    handler_fn itype_handler[4] = {
+    handler_fn itype_handler[3] = {
         &simulator::run_I_ld,
         &simulator::run_I_alu,
         &simulator::run_I_jmp,
-        &simulator::run_I_err,
     };
 public:
     simulator(uint8_t *mem) : mem(mem), pc(ADDR_BASE) {}

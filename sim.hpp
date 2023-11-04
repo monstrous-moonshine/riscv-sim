@@ -63,11 +63,7 @@ class simulator {
         &simulator::run_I_err,
     };
 public:
-    //simulator(uint8_t *mem) : mem(mem), pc(ADDR_BASE) {}
-    simulator(uint8_t *mem) {
-        this->mem = mem;
-        this->pc = ADDR_BASE;
-    }
+    simulator(uint8_t *mem) : mem(mem), pc(ADDR_BASE) {}
     void run();
 };
 

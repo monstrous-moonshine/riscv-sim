@@ -1,4 +1,5 @@
-void sieve(char p[], int n) {
+__attribute__((noinline))
+static void sieve(char p[], int n) {
     for (int i = 0; i < n; i++) {
         p[i] = -1;
     }

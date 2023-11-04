@@ -1,7 +1,8 @@
+#include "../../common.hpp"
 .section .text.init
 .global _entry
 _entry:
-    la sp, 0x80000000 + 128 * 1024 * 1024
+    la sp, ADDR_BASE + MEM_SIZE
     call main
 spin:
     j spin

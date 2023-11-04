@@ -1,0 +1,79 @@
+$ gdb --args ./riscv-sim test/sqrt/sqrt
+(gdb) # break at sim.cc:51, which is just after an instruction is fetched
+(gdb) break sim.cc:51
+Breakpoint 1 at 0x256b: file sim.cc, line 51.
+(gdb) # print the pc and the instruction at each breakpoint hit
+(gdb) commands
+Type commands for breakpoint(s) 1, one per line.
+End with a line saying just "end".
+>silent
+>printf "> %08x: %08x\n", prev_pc, word
+>end
+(gdb) run
+> 80000000: 80100137
+(gdb) # lui sp,0x80100
+(gdb) # this sets up stack pointer at just beyond the 1MB memory limit
+(gdb) continue
+Continuing.
+> 80000004: 110000ef
+(gdb) # jal ra,80000114 <main>
+(gdb) continue
+Continuing.
+> 80000114: 800017b7
+(gdb) # lui a5,0x80001
+(gdb) # this sets up a5 to a page in the data segment, presumably
+(gdb) continue
+Continuing.
+> 80000118: 4347a503
+(gdb) # lw a0,1076(a5)
+(gdb) # a0 is where the argument is passed to sqrt
+(gdb) # here, it is being read from the page pointed to by a5
+(gdb) continue
+Continuing.
+> 8000011c: ff010113
+(gdb) # we can check what value was loaded into a0
+(gdb) p *(float *)(&reg[10])
+$1 = 2
+(gdb) # indeed, we're trying to calculate sqrt(2)
+(gdb) # on to the next instruction...
+(gdb) # addi sp,sp,-16
+(gdb) continue
+Continuing.
+> 80000120: 00112623
+(gdb) # sw ra,12(sp)
+(gdb) # save return address on stack
+(gdb) continue
+Continuing.
+> 80000124: f21ff0ef
+(gdb) # jal ra,80000044 <my_sqrt>
+(gdb) # now, we don't want to step through all the instructions
+(gdb) # to calculate sqrt(2), so we set a condition to only stop
+(gdb) # when pc is 0x80000128
+(gdb) condition 1 prev_pc == 0x80000128
+(gdb) continue
+Continuing.
+> 80000128: 00c12083
+(gdb) # we can now check the value returned in a0
+(gdb) p *(float *)(&reg[10])
+$3 = 1.41421354
+(gdb) # sounds about right
+(gdb) # we should remove the condition on the breakpoint now
+(gdb) condition 1
+Breakpoint 1 now unconditional.
+(gdb) # the next instruction...
+(gdb) # lw ra,12(sp)
+(gdb) # restore return address from stack
+(gdb) continue
+Continuing.
+> 8000012c: 01010113
+(gdb) # addi sp,sp,16
+(gdb) continue
+Continuing.
+> 80000130: 00008067
+(gdb) # ret
+(gdb) continue
+Continuing.
+> 80000008: 0000006f
+(gdb) # j 80000008
+(gdb) # loop forever, this is where we become satisfied, exit the
+(gdb) # debugger, and go out for a walk

@@ -55,8 +55,9 @@ int main(int argc, char *argv[]) {
     }
     // Wrap it in a smart pointer so that it's freed at exit
     std::unique_ptr<uint8_t, fn_munmap> mem(_mem);
-    // Copy loadable segments into memory
     Elf32_Ehdr *ehdr = (Elf32_Ehdr *)elf.get();
+    // Copy loadable segments into memory
+    // TODO: validate the elf file first
     Elf32_Phdr *phdr = (Elf32_Phdr *)(elf.get() + ehdr->e_phoff);
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdr[i].p_type == PT_LOAD) {

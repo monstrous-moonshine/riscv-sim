@@ -46,6 +46,12 @@ uint32_t simulator::fetch() {
 
 void simulator::run() {
     for (;;) {
+        /* We maintain reg[0] == 0 by assigning it before each instruction.
+         * That way, we don't have to check if the target is reg[0] before
+         * every register assignment. Assignments to reg[0] that do happen
+         * in the execution of the previous instruction are automatically
+         * discarded before the next instruction, and it always reads 0.
+         */
         reg[0] = 0;
         const uint32_t word = fetch();
         instr_t ir(word);
@@ -65,6 +71,14 @@ void simulator::run() {
             ir.as.itype.f3 = word >> 12 & ONES(3);
             ir.as.itype.rs1 = word >> 15 & ONES(5);
             ir.as.itype.imm = sign_extend<11>(word >> 20);
+            /* We have determined that ir.op is one of 0x03, 0x13, or 0x67.
+             * These 3 opcodes do 3 different kinds of operations, although
+             * they're all encoded the same way. Instead of checking once
+             * more which one of these 3 it is and dispatching based on that,
+             * we can keep the handlers for the 3 cases in an array and call
+             * the appropriate one by mapping the 3 opcodes to indices into
+             * that array. ir.op >> 4 & 0x3 does the desired mapping.
+             */
             std::invoke(itype_handler[ir.op >> 4 & 0x3], *this, ir);
             break;
         case 0x23:
@@ -85,6 +99,9 @@ void simulator::run() {
         case 0x37:
             ir.as.utype.rd = word >> 7 & ONES(5);
             ir.as.utype.imm = word & ~ONES(12);
+            /* The 2 opcodes here -- 0x17 and 0x37, do sufficiently similar
+             * things that they can be handled by the same function.
+             */
             run_U(ir);
             break;
         case 0x6f:
@@ -137,20 +154,32 @@ void simulator::run_I_ld(const instr_t ir) {
     const uint32_t f3 = ir.as.itype.f3;
     const uint32_t addr = reg[rs1] + ir.as.itype.imm;
     const uint32_t off = addr & ~ADDR_BASE;
+    /* There are 5 types of loads -- 2 each for byte- and halfword-
+     * sizes, and one for word-size. 2 instructions are required for
+     * byte and halfword loads because the msb of the register could
+     * be either zero-extended, or sign-extended. This doesn't matter
+     * for word-sized load because a whole register's worth of data
+     * is read from memory, and there's no extension involved.
+     */
     switch (f3) {
     case 0:
+        // lb rd, imm(rs1)
         reg[rd] = static_cast<int8_t>(mem[off]);
         break;
     case 1:
+        // lh rd, imm(rs1)
         reg[rd] = *reinterpret_cast<int16_t *>(&mem[off]);
         break;
     case 2:
+        // lw rd, imm(rs1)
         reg[rd] = *reinterpret_cast<uint32_t *>(&mem[off]);
         break;
     case 4:
+        // lbu rd, imm(rs1)
         reg[rd] = mem[off];
         break;
     case 5:
+        // lhu rd, imm(rs1)
         reg[rd] = *reinterpret_cast<uint16_t *>(&mem[off]);
         break;
     default:
@@ -205,14 +234,22 @@ void simulator::run_S(instr_t ir) {
     const uint32_t imm = ir.as.stype.imm;
     const uint32_t addr = reg[rs1] + imm;
     const uint32_t off = addr & ~ADDR_BASE;
+    /* There are 3 types of stores -- byte-, halfword-, and word-sized. Unlike
+     * load, there are no signed/unsigned variants, since stores to memory
+     * write exactly as many bytes as stipulated, and there's no sign/zero
+     * extension involved.
+     */
     switch (f3) {
     case 0:
+        // sb rs2, imm(rs1)
         mem[off] = static_cast<uint8_t>(reg[rs2]);
         break;
     case 1:
+        // sh rs2, imm(rs1)
         *reinterpret_cast<uint16_t *>(&mem[off]) = static_cast<uint16_t>(reg[rs2]);
         break;
     case 2:
+        // sw rs2, imm(rs1)
         *reinterpret_cast<uint32_t *>(&mem[off]) = reg[rs2];
         break;
     default:

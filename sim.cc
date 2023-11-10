@@ -217,10 +217,16 @@ void simulator::run_I_alu(const instr_t ir) {
 void simulator::run_I_jmp(const instr_t ir) {
     const uint32_t rd = ir.as.itype.rd;
     const uint32_t rs1 = ir.as.itype.rs1;
-    const uint32_t imm = ir.as.itype.imm;
+    const uint32_t imm = ir.as.itype.imm & ~0x1;
+    const uint32_t tgt = reg[rs1] + imm;
+
+    if (tgt & 0x2) {
+        errmsg_misaligned(tgt);
+        exit(1);
+    }
 
     reg[rd] = prev_pc + 4;
-    pc = reg[rs1] + imm;
+    pc = tgt;
 }
 
 void simulator::run_S(instr_t ir) {
@@ -282,6 +288,11 @@ void simulator::run_B(instr_t ir) {
         errmsg_illegal();
         exit(1);
     }
+
+    if (pc & 0x2) {
+        errmsg_misaligned(pc);
+        exit(1);
+    }
 }
 
 void simulator::run_U(instr_t ir) {
@@ -297,6 +308,11 @@ void simulator::run_J(instr_t ir) {
     const uint32_t imm = ir.as.utype.imm;
     const uint32_t tgt = prev_pc + imm;
 
+    if (tgt & 0x2) {
+        errmsg_misaligned(tgt);
+        exit(1);
+    }
+
     reg[rd] = prev_pc + 4;
     pc = tgt;
 }
@@ -304,5 +320,10 @@ void simulator::run_J(instr_t ir) {
 void simulator::errmsg_illegal() {
     const uint32_t word = *reinterpret_cast<uint32_t *>(&mem[prev_pc & ~ADDR_BASE]);
     fprintf(stderr, "%s: error: Illegal instruction 0x%08x ", prog_name, word);
+    fprintf(stderr, "at address 0x%08x\n", prev_pc);
+}
+
+void simulator::errmsg_misaligned(uint32_t tgt) {
+    fprintf(stderr, "%s: error: Misaligned jump/taken branch target 0x%08x ", prog_name, tgt);
     fprintf(stderr, "at address 0x%08x\n", prev_pc);
 }

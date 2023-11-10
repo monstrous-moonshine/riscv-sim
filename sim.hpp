@@ -53,6 +53,7 @@ class simulator {
     void run_U(instr_t instr);
     void run_J(instr_t instr);
     void errmsg_illegal();
+    void errmsg_misaligned(uint32_t tgt);
 
     typedef void (simulator::*handler_fn)(const instr_t);
     handler_fn itype_handler[3] = {

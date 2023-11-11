@@ -263,7 +263,7 @@ void simulator::run_I_jalr(const instr_t ir) {
     const uint32_t rd = ir.as.itype.rd;
     const uint32_t rs1 = ir.as.itype.rs1;
     const uint32_t imm = ir.as.itype.imm;
-    const uint32_t tgt = reg[rs1] + imm & ~0x1;
+    const uint32_t tgt = (reg[rs1] + imm) & ~0x1;
 
     reg[rd] = prev_pc + 4;
     pc = tgt;

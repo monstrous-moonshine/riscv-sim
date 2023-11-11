@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <functional>
 
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 namespace {
     template <uint32_t N>
     uint32_t sign_extend(uint32_t in) {
@@ -55,7 +57,7 @@ void simulator::run() {
         reg[0] = 0;
         const uint32_t word = fetch();
         instr_t ir(word);
-        if (~(ir.op | ~0x3)) {
+        if (unlikely(~(ir.op | ~0x3))) {
             const uint16_t ir = static_cast<uint16_t>(word);
             fprintf(stderr, "%s: error: RV32C extension not supported\n", prog_name);
             fprintf(stderr, "%s: error: pc = 0x%08x, ir = 0x%04x\n", prog_name, prev_pc, ir);

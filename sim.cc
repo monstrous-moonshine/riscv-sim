@@ -64,7 +64,7 @@ void simulator::run() {
             exit(1);
         }
         switch (ir.op >> 2) {
-        case 0x0c:
+        case 0x0c: // OP
             ir.as.rtype.rd = word >> 7 & ONES(5);
             ir.as.rtype.f3 = word >> 12 & ONES(3);
             ir.as.rtype.rs1 = word >> 15 & ONES(5);
@@ -72,9 +72,9 @@ void simulator::run() {
             ir.as.rtype.f7 = word >> 25;
             run_R(ir);
             break;
-        case 0x00:
-        case 0x04:
-        case 0x19:
+        case 0x00: // LOAD
+        case 0x04: // OP-IMM
+        case 0x19: // JALR
             ir.as.itype.rd = word >> 7 & ONES(5);
             ir.as.itype.f3 = word >> 12 & ONES(3);
             ir.as.itype.rs1 = word >> 15 & ONES(5);
@@ -89,22 +89,22 @@ void simulator::run() {
              */
             std::invoke(itype_handler[ir.op >> 4 & 0x3], *this, ir);
             break;
-        case 0x08:
+        case 0x08: // STORE
             ir.as.stype.f3 = word >> 12 & ONES(3);
             ir.as.stype.rs1 = word >> 15 & ONES(5);
             ir.as.stype.rs2 = word >> 20 & ONES(5);
             ir.as.stype.imm = imm_S(word);
             run_S(ir);
             break;
-        case 0x18:
+        case 0x18: // BRANCH
             ir.as.stype.f3 = word >> 12 & ONES(3);
             ir.as.stype.rs1 = word >> 15 & ONES(5);
             ir.as.stype.rs2 = word >> 20 & ONES(5);
             ir.as.stype.imm = imm_B(word);
             run_B(ir);
             break;
-        case 0x05:
-        case 0x0d:
+        case 0x05: // AUIPC
+        case 0x0d: // LUI
             ir.as.utype.rd = word >> 7 & ONES(5);
             ir.as.utype.imm = word & ~ONES(12);
             /* The 2 opcodes here -- 0x17 and 0x37, do sufficiently similar
@@ -112,11 +112,19 @@ void simulator::run() {
              */
             run_U(ir);
             break;
-        case 0x1b:
+        case 0x1b: // JAL
             ir.as.utype.rd = word >> 7 & ONES(5);
             ir.as.utype.imm = imm_J(word);
             run_J(ir);
             break;
+        case 0x03: // MISC-MEM
+            /* Handle FENCE and FENCE.I as NOP */
+            break;
+        case 0x1c: // SYSTEM
+        case 0x0b: // AMO
+            /* Don't support these */
+            errmsg_illegal();
+            exit(1);
         default:
             errmsg_illegal();
             exit(1);

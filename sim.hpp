@@ -45,21 +45,21 @@ class simulator {
 
     uint32_t fetch();
     void run_R(instr_t instr);
-    void run_I_ld(instr_t instr);
-    void run_I_alu(instr_t instr);
-    void run_I_jmp(instr_t instr);
+    void run_I_load(instr_t instr);
+    void run_I_op(instr_t instr);
+    void run_I_jalr(instr_t instr);
     void run_S(instr_t instr);
     void run_B(instr_t instr);
     void run_U(instr_t instr);
     void run_J(instr_t instr);
     void errmsg_illegal();
-    void errmsg_misaligned(uint32_t tgt);
+    void errmsg_misaligned();
 
     typedef void (simulator::*handler_fn)(const instr_t);
     handler_fn itype_handler[3] = {
-        &simulator::run_I_ld,
-        &simulator::run_I_alu,
-        &simulator::run_I_jmp,
+        &simulator::run_I_load,
+        &simulator::run_I_op,
+        &simulator::run_I_jalr,
     };
 public:
     simulator(uint8_t *mem) : mem(mem), pc(ADDR_BASE) {}

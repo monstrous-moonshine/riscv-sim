@@ -59,19 +59,29 @@ void simulator::run() {
         instr_t ir(word);
         if (unlikely(~(ir.op | ~0x3))) {
             const uint16_t ir = static_cast<uint16_t>(word);
-            fprintf(stderr, "%s: error: RV32C extension not supported\n", prog_name);
-            fprintf(stderr, "%s: error: pc = 0x%08x, ir = 0x%04x\n", prog_name, prev_pc, ir);
+            fprintf(stderr, "%s: error: RV32C extension not supported ", prog_name);
+            fprintf(stderr, "(pc = 0x%08x, ir = 0x%04x)\n", prev_pc, ir);
             exit(1);
         }
+        if (unlikely(word == 0x6f)) {
+            // JAL x0, 0 or infinite loop. Exit the simulator.
+            printf("Program completed successfully!\n");
+            exit(0);
+        }
         switch (ir.op >> 2) {
-        case 0x0c: // OP
-            ir.as.rtype.rd = word >> 7 & ONES(5);
-            ir.as.rtype.f3 = word >> 12 & ONES(3);
-            ir.as.rtype.rs1 = word >> 15 & ONES(5);
-            ir.as.rtype.rs2 = word >> 20 & ONES(5);
-            ir.as.rtype.f7 = word >> 25;
-            run_R(ir);
-            break;
+        /*            RV32I Base Instruction Set Opcode Map
+         * ┌──┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
+         * │  │  000 │  001 │  010 │ 011  │  100 │  101 │  110 │  111 │
+         * ├──┼──────┼──────┼──────┼──────┼──────┼──────┼──────┼──────┤
+         * │00│LOAD  │      │      │      │OP-IMM│AUIPC │      │      │
+         * ├──┼──────┼──────┼──────┼──────┼──────┼──────┼──────┼──────┤
+         * │01│STORE │      │      │      │OP    │LUI   │      │      │
+         * ├──┼──────┼──────┼──────┼──────┼──────┼──────┼──────┼──────┤
+         * │10│      │      │      │      │      │      │      │      │
+         * ├──┼──────┼──────┼──────┼──────┼──────┼──────┼──────┼──────┤
+         * │11│BRANCH│ JALR │      │  JAL │      │      │      │      │
+         * └──┴──────┴──────┴──────┴──────┴──────┴──────┴──────┴──────┘
+         */
         case 0x00: // LOAD
         case 0x04: // OP-IMM
         case 0x19: // JALR
@@ -96,6 +106,20 @@ void simulator::run() {
             ir.as.stype.imm = imm_S(word);
             run_S(ir);
             break;
+        case 0x0c: // OP
+            ir.as.rtype.rd = word >> 7 & ONES(5);
+            ir.as.rtype.f3 = word >> 12 & ONES(3);
+            ir.as.rtype.rs1 = word >> 15 & ONES(5);
+            ir.as.rtype.rs2 = word >> 20 & ONES(5);
+            ir.as.rtype.f7 = word >> 25;
+            run_R(ir);
+            break;
+        case 0x05: // AUIPC
+        case 0x0d: // LUI
+            ir.as.utype.rd = word >> 7 & ONES(5);
+            ir.as.utype.imm = word & ~ONES(12);
+            run_U(ir);
+            break;
         case 0x18: // BRANCH
             ir.as.stype.f3 = word >> 12 & ONES(3);
             ir.as.stype.rs1 = word >> 15 & ONES(5);
@@ -103,28 +127,11 @@ void simulator::run() {
             ir.as.stype.imm = imm_B(word);
             run_B(ir);
             break;
-        case 0x05: // AUIPC
-        case 0x0d: // LUI
-            ir.as.utype.rd = word >> 7 & ONES(5);
-            ir.as.utype.imm = word & ~ONES(12);
-            /* The 2 opcodes here -- 0x17 and 0x37, do sufficiently similar
-             * things that they can be handled by the same function.
-             */
-            run_U(ir);
-            break;
         case 0x1b: // JAL
             ir.as.utype.rd = word >> 7 & ONES(5);
             ir.as.utype.imm = imm_J(word);
             run_J(ir);
             break;
-        case 0x03: // MISC-MEM
-            /* Handle FENCE and FENCE.I as NOP */
-            break;
-        case 0x1c: // SYSTEM
-        case 0x0b: // AMO
-            /* Don't support these */
-            errmsg_illegal();
-            exit(1);
         default:
             errmsg_illegal();
             exit(1);
@@ -133,6 +140,9 @@ void simulator::run() {
 }
 
 void simulator::run_R(instr_t ir) {
+    /* Mostly wastes the 7 f7 bits, except using 1 bit to encode ADD/SUB, SRL/SRA.
+     * We do not explicitly check these bits except to choose between the above cases.
+     */
     const uint32_t rd = ir.as.rtype.rd;
     const uint32_t rs1 = ir.as.rtype.rs1;
     const uint32_t rs2 = ir.as.rtype.rs2;
@@ -140,11 +150,13 @@ void simulator::run_R(instr_t ir) {
     const uint32_t f7 = ir.as.rtype.f7;
     switch (f3) {
 #define ROP(op) ({ reg[rd] = reg[rs1] op reg[rs2]; break; })
+#define SOP(op, arg) ((arg) op (reg[rs2] & ONES(5)))
+#define FOP(t1, t2) (f7 & 0x20 ? (t1) : (t2))
     case 0:
-        reg[rd] = f7 & 0x20 ? reg[rs1] - reg[rs2] : reg[rs1] + reg[rs2];
+        reg[rd] = FOP(reg[rs1] - reg[rs2], reg[rs1] + reg[rs2]);
         break;
     case 1:
-        reg[rd] = reg[rs1] << (reg[rs2] & ONES(5));
+        reg[rd] = SOP(<<, reg[rs1]);
         break;
     case 2:
         reg[rd] = static_cast<int32_t>(reg[rs1]) < static_cast<int32_t>(reg[rs2]);
@@ -152,19 +164,20 @@ void simulator::run_R(instr_t ir) {
     case 3: ROP(<);
     case 4: ROP(^);
     case 5:
-        reg[rd] = f7 & 0x20 ? static_cast<int32_t>(reg[rs1]) >> (reg[rs2] & ONES(5))
-                            : reg[rs1] >> (reg[rs2] & ONES(5));
+        reg[rd] = FOP(SOP(>>, static_cast<int32_t>(reg[rs1])), SOP(>>, reg[rs1]));
         break;
     case 6: ROP(|);
     case 7: ROP(&);
 #undef ROP
+#undef SOP
+#undef FOP
     default:
         assert(0);
         break;
     }
 }
 
-void simulator::run_I_ld(const instr_t ir) {
+void simulator::run_I_load(const instr_t ir) {
     const uint32_t rd = ir.as.itype.rd;
     const uint32_t rs1 = ir.as.itype.rs1;
     const uint32_t f3 = ir.as.itype.f3;
@@ -204,7 +217,11 @@ void simulator::run_I_ld(const instr_t ir) {
     }
 }
 
-void simulator::run_I_alu(const instr_t ir) {
+void simulator::run_I_op(const instr_t ir) {
+    /* For shifts, the upper 7 bits of imm are unused, except to encode SRLI/SRAI. We do not
+     * explicitly check these bits except for the above case. There's no SUBI instruction as
+     * the immediate itself is signed and no separate instruction is required for subtraction.
+     */
     const uint32_t rd = ir.as.itype.rd;
     const uint32_t rs1 = ir.as.itype.rs1;
     const uint32_t f3 = ir.as.itype.f3;
@@ -230,19 +247,24 @@ void simulator::run_I_alu(const instr_t ir) {
     }
 }
 
-void simulator::run_I_jmp(const instr_t ir) {
+void simulator::run_I_jalr(const instr_t ir) {
+    /* Wastes 4 bits: 3 from f3, and 1 because the immediate offset explicitly
+     * contains the lsb which is always cleared before execution. However, this
+     * bit can be used to encode something else, and this scheme simplifies
+     * instruction decoding.
+     */
     const uint32_t rd = ir.as.itype.rd;
     const uint32_t rs1 = ir.as.itype.rs1;
-    const uint32_t imm = ir.as.itype.imm & ~0x1;
-    const uint32_t tgt = reg[rs1] + imm;
-
-    if (tgt & 0x2) {
-        errmsg_misaligned(tgt);
-        exit(1);
-    }
+    const uint32_t imm = ir.as.itype.imm;
+    const uint32_t tgt = reg[rs1] + imm & ~0x1;
 
     reg[rd] = prev_pc + 4;
     pc = tgt;
+
+    if (unlikely(pc & 0x2)) {
+        errmsg_misaligned();
+        exit(1);
+    }
 }
 
 void simulator::run_S(instr_t ir) {
@@ -305,8 +327,8 @@ void simulator::run_B(instr_t ir) {
         exit(1);
     }
 
-    if (pc & 0x2) {
-        errmsg_misaligned(pc);
+    if (unlikely(pc & 0x2)) {
+        errmsg_misaligned();
         exit(1);
     }
 }
@@ -316,7 +338,7 @@ void simulator::run_U(instr_t ir) {
     const uint32_t rd = ir.as.utype.rd;
     const uint32_t imm = ir.as.utype.imm;
 
-    reg[rd] = imm + (op & 0x20 ? 0 : prev_pc);
+    reg[rd] = imm + (op & 0x20 ? 0 /*LUI*/ : prev_pc /*AUIPC*/);
 }
 
 void simulator::run_J(instr_t ir) {
@@ -324,22 +346,23 @@ void simulator::run_J(instr_t ir) {
     const uint32_t imm = ir.as.utype.imm;
     const uint32_t tgt = prev_pc + imm;
 
-    if (tgt & 0x2) {
-        errmsg_misaligned(tgt);
-        exit(1);
-    }
-
     reg[rd] = prev_pc + 4;
     pc = tgt;
+
+    if (unlikely(pc & 0x2)) {
+        errmsg_misaligned();
+        exit(1);
+    }
 }
 
 void simulator::errmsg_illegal() {
-    const uint32_t word = *reinterpret_cast<uint32_t *>(&mem[prev_pc & ~ADDR_BASE]);
-    fprintf(stderr, "%s: error: Illegal instruction 0x%08x ", prog_name, word);
-    fprintf(stderr, "at address 0x%08x\n", prev_pc);
+    const uint32_t ir = *reinterpret_cast<uint32_t *>(&mem[prev_pc & ~ADDR_BASE]);
+    fprintf(stderr, "%s: error: illegal instruction ", prog_name);
+    fprintf(stderr, "(pc = 0x%08x, ir = 0x%08x)\n", prev_pc, ir);
 }
 
-void simulator::errmsg_misaligned(uint32_t tgt) {
-    fprintf(stderr, "%s: error: Misaligned jump/taken branch target 0x%08x ", prog_name, tgt);
-    fprintf(stderr, "at address 0x%08x\n", prev_pc);
+void simulator::errmsg_misaligned() {
+    const uint32_t ir = *reinterpret_cast<uint32_t *>(&mem[prev_pc & ~ADDR_BASE]);
+    fprintf(stderr, "%s: error: misaligned jump/branch target ", prog_name);
+    fprintf(stderr, "(pc = 0x%08x, ir = 0x%08x, tgt = 0x%08x)\n", prev_pc, ir, pc);
 }

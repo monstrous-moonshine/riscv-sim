@@ -47,6 +47,13 @@ uint32_t simulator::fetch() {
 }
 
 void simulator::run() {
+    /* We start execution at 0x80000000, and from this point onward pc is updated by:
+     *
+     * 1. Instruction fetch: pc <- pc + 4
+     * 2. Jump/branch: pc <- target, where target is checked to be a multiple of 4
+     *
+     * Hence, pc remains a multiple of 4 throughout program execution.
+     */
     for (;;) {
         /* We maintain reg[0] == 0 by assigning it before each instruction.
          * That way, we don't have to check if the target is reg[0] before
